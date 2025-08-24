@@ -298,8 +298,10 @@ final class GameViewModel: ObservableObject {
         timer?.invalidate()
         startDate = Date()
         timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
-            guard let self = self, let start = self.startDate else { return }
-            self.elapsed = Date().timeIntervalSince(start)
+            Task { @MainActor in
+                guard let self = self, let start = self.startDate else { return }
+                self.elapsed = Date().timeIntervalSince(start)
+            }
         }
     }
 
@@ -572,7 +574,7 @@ struct CellView: View {
             if let v = cell.value {
                 Text("\(v)")
                     .font(cell.given ? .title2.weight(.bold) : .title2)
-                    .foregroundStyle(cell.given ? .primary : .blue)
+                    .foregroundColor(cell.given ? .primary : .blue)
             } else if !cell.notes.isEmpty {
                 notesGrid
             }
@@ -634,13 +636,7 @@ struct NumberPad: View {
     }
 }
 
-// MARK: - Board subscript mutability helper
-extension Board {
-    subscript(_ row: Int, _ col: Int) -> Cell {
-        get { cells[Board.index(row: row, col: col)] }
-        set { cells[Board.index(row: row, col: col)] = newValue }
-    }
-}
+
 
 // MARK: - Previews
 struct ContentView_Previews: PreviewProvider {
