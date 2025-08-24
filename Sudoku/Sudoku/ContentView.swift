@@ -26,6 +26,7 @@ struct Cell: Identifiable, Codable, Equatable {
     var notes: Set<Int> = [] // pencil marks
     var isConflicted: Bool = false
     var isSelected: Bool = false
+    var isActivelySelected: Bool = false
     var id: String { "\(row)-\(col)" }
 }
 
@@ -399,7 +400,11 @@ final class GameViewModel: ObservableObject {
 
     private func updateSelectionHighlights() {
         guard let sel = selected else {
-            for idx in 0..<board.cells.count { board.cells[idx].isSelected = false; board.cells[idx].isConflicted = false }
+            for idx in 0..<board.cells.count { 
+                board.cells[idx].isSelected = false
+                board.cells[idx].isActivelySelected = false
+                board.cells[idx].isConflicted = false 
+            }
             return
         }
         let rSel = sel.row, cSel = sel.col
@@ -407,7 +412,9 @@ final class GameViewModel: ObservableObject {
         for r in 0..<9 {
             for c in 0..<9 {
                 var cell = board[r, c]
-                cell.isSelected = (r == rSel && c == cSel) || (highlightPeers && (r == rSel || c == cSel || (r/3 == rSel/3 && c/3 == cSel/3)))
+                let isThisTheActiveCell = (r == rSel && c == cSel)
+                cell.isActivelySelected = isThisTheActiveCell
+                cell.isSelected = isThisTheActiveCell || (highlightPeers && (r == rSel || c == cSel || (r/3 == rSel/3 && c/3 == cSel/3)))
                 // same number highlight (non-given helpful UX)
                 if let v = valSel, board[r, c].value == v { cell.isSelected = true }
                 board[r, c] = cell
@@ -518,44 +525,41 @@ struct SudokuGridView: View {
     var tap: (Int, Int) -> Void
 
     var body: some View {
-        GeometryReader { geo in
-            let size = min(geo.size.width, geo.size.width) // square
-            let cellSize = size / 9
-
-            ZStack {
-                // Outer border
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(lineWidth: 2)
-                    .foregroundStyle(.secondary)
-
-                // 9x9 cells
-                ForEach(0..<9, id: \.self) { r in
+        VStack(spacing: 0) {
+            ForEach(0..<9, id: \.self) { r in
+                HStack(spacing: 0) {
                     ForEach(0..<9, id: \.self) { c in
                         let cell = board[r, c]
                         CellView(cell: cell)
-                            .frame(width: cellSize, height: cellSize)
-                            .position(x: cellSize * (CGFloat(c) + 0.5), y: cellSize * (CGFloat(r) + 0.5))
-                            .contentShape(Rectangle())
+                            .aspectRatio(1, contentMode: .fit)
+                            .border(Color.secondary.opacity(0.3), width: 0.5)
                             .onTapGesture { tap(r, c) }
                     }
                 }
-
-                // Bold 3x3 separators
+            }
+        }
+        .overlay(
+            // Bold 3x3 separators
+            GeometryReader { geo in
+                let size = geo.size.width
                 Path { p in
                     for i in 1..<3 {
                         let pos = CGFloat(i) * (size / 3)
+                        // Vertical lines
                         p.move(to: CGPoint(x: pos, y: 0))
                         p.addLine(to: CGPoint(x: pos, y: size))
+                        // Horizontal lines  
                         p.move(to: CGPoint(x: 0, y: pos))
                         p.addLine(to: CGPoint(x: size, y: pos))
                     }
                 }
                 .stroke(style: StrokeStyle(lineWidth: 3))
                 .foregroundStyle(.primary)
+                .allowsHitTesting(false)
             }
-            .frame(width: size, height: size)
-        }
+        )
         .aspectRatio(1, contentMode: .fit)
+        .padding()
     }
 }
 
@@ -568,7 +572,7 @@ struct CellView: View {
                 .fill(cellBackground)
                 .overlay(
                     Rectangle()
-                        .strokeBorder(cell.isConflicted ? Color.red : Color.secondary.opacity(0.4), lineWidth: 0.5)
+                        .strokeBorder(cell.isConflicted ? Color.red : Color.clear, lineWidth: cell.isConflicted ? 2 : 0)
                 )
 
             if let v = cell.value {
@@ -582,7 +586,11 @@ struct CellView: View {
     }
 
     private var cellBackground: Color {
-        if cell.isSelected { return Color.yellow.opacity(0.25) }
+        if cell.isActivelySelected { 
+            return Color.blue.opacity(0.3) // Distinct blue for the actively selected cell
+        } else if cell.isSelected { 
+            return Color.yellow.opacity(0.15) // Lighter yellow for peer cells
+        }
         return Color.clear
     }
 
